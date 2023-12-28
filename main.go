@@ -21,12 +21,28 @@ var customers = []customer{
 
 
 func getCustomers(c *gin.Context) {
-        c.IndentedJSON(http.StatusOK, customers)
+        id := c.Param("id")
+
+        if len(id)!=0{
+
+        for _, customer := range customers {
+                if customer.ID == id {
+                        c.IndentedJSON(http.StatusOK, customer)
+                        return
+                }
+        }
+        c.IndentedJSON(http.StatusNotFound, gin.H{"message": "customer not found"})
+        return
+      }
+
+      c.IndentedJSON(http.StatusOK, customers)
+
 }
 
 func main() {
   r := gin.Default()
   r.GET("/customers", getCustomers)
+  r.GET("/customers/:id", getCustomers)
 
   r.Run(":8080")
 }
