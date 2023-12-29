@@ -1,48 +1,135 @@
 package main
 
 import (
-  "net/http"
-  "github.com/gin-gonic/gin"
+	"encoding/json"
+	"fmt"
+	"github.com/boltdb/bolt"
+	"github.com/gin-gonic/gin"
+	"log"
+	"net/http"
 )
 
-// customer struct to mock customer
-type customer struct {
-        ID     string  `json:"id"`
-        Name  string  `json:"name"`
-        AccountID     string  `json:"accountid"`
-}
+var db *bolt.DB
 
-// customers slice to seed customer data.
-var customers = []customer{
-        {ID: "1", Name: "Luffy", AccountID: "123"},
-        {ID: "2", Name: "Zoro", AccountID: "345"},
-        {ID: "3", Name: "Sanji", AccountID: "678"},
-}
+func getAllCustomers(c *gin.Context) {
+	var data [][]byte
+	var result map[string]interface{}
+	results := []map[string]interface{}{}
 
+	err := db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("customers"))
+		if b == nil {
+			return fmt.Errorf("Bucket not found")
+		}
+
+		// Set the cursor to the last key in the bucket
+		c := b.Cursor()
+		lastKey, _ := c.Last()
+
+		// Iterate and add to data
+		for k, v := c.Seek(lastKey); k != nil; k, v = c.Prev() {
+			data = append(data, v)
+		}
+
+		return nil
+	})
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	for _, d := range data {
+		json.Unmarshal(d, &result)
+		results = append(results, result)
+	}
+
+	c.JSON(http.StatusOK, results)
+}
 
 func getCustomers(c *gin.Context) {
-        id := c.Param("id")
+	id := c.Param("id")
 
-        if len(id)!=0{
+	var result map[string]interface{}
 
-        for _, customer := range customers {
-                if customer.ID == id {
-                        c.IndentedJSON(http.StatusOK, customer)
-                        return
-                }
-        }
-        c.IndentedJSON(http.StatusNotFound, gin.H{"message": "customer not found"})
-        return
-      }
+	err := db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("customers"))
+		if b == nil {
+			return fmt.Errorf("Bucket not found")
+		}
 
-      c.IndentedJSON(http.StatusOK, customers)
+		data := b.Get([]byte(id))
+		if data == nil {
+			return fmt.Errorf("Customer not found")
+		}
+
+		return json.Unmarshal(data, &result)
+	})
+
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, result)
 
 }
 
 func main() {
-  r := gin.Default()
-  r.GET("/customers", getCustomers)
-  r.GET("/customers/:id", getCustomers)
+	var err error
+	db, err = bolt.Open("customer.db", 0600, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
 
-  r.Run(":8080")
+	// Initialize database buckets
+	err = db.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists([]byte("customers"))
+		return err
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("customers"))
+		if b == nil {
+			return fmt.Errorf("Bucket not found")
+		}
+
+		// Seed data
+		seedData := map[string]interface{}{
+			"1": map[string]interface{}{
+				"name":     "Luffy",
+				"address":  "123 Main St",
+				"accounts": []string{"acc1", "acc2"},
+			},
+			// Add more seed data as needed
+		}
+
+		for id, data := range seedData {
+			jsonData, err := json.Marshal(data)
+			if err != nil {
+				return err
+			}
+
+			err = b.Put([]byte(id), jsonData)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("Seed data added to BoltDB successfully.")
+
+	r := gin.Default()
+	r.GET("/customers", getAllCustomers)
+	r.GET("/customers/:id", getCustomers)
+
+	r.Run(":8080")
 }
