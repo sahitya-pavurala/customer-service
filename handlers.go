@@ -2,10 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"github.com/boltdb/bolt"
 	"github.com/gin-gonic/gin"
 	"net/http"
-  "fmt"
-	"github.com/boltdb/bolt"
 )
 
 func GetAllCustomers(c *gin.Context) {

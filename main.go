@@ -1,17 +1,16 @@
 package main
 
 import (
+	"github.com/gin-gonic/gin"
 	"log"
-  "github.com/gin-gonic/gin"
 )
-
 
 func main() {
 	err := InitializeDB()
 	if err != nil {
 		log.Fatal(err)
 	}
-  defer db.Close()
+	defer db.Close()
 
 	err = SeedData()
 	if err != nil {
@@ -20,10 +19,8 @@ func main() {
 
 	r := gin.Default()
 
-
 	r.GET("/customers", GetAllCustomers)
 	r.GET("/customers/:id", GetCustomer)
-
 
 	r.Run(":8080")
 }
