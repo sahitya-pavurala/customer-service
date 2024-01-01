@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/boltdb/bolt"
+	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"net/http"
-  "time"
-  "github.com/dgrijalva/jwt-go"
+	"time"
 )
 
 var jwtKey = []byte("dummy_secret_key")

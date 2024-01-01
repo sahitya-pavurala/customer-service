@@ -21,8 +21,8 @@ func InitializeDB() error {
 		return err
 	})
 
-  // Initialize users buckets
-  err = db.Update(func(tx *bolt.Tx) error {
+	// Initialize users buckets
+	err = db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists([]byte("users"))
 		return err
 	})
