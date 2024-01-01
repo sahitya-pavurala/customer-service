@@ -15,11 +15,18 @@ func InitializeDB() error {
 		return err
 	}
 
-	// Initialize database buckets
+	// Initialize customers buckets
 	err = db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists([]byte("customers"))
 		return err
 	})
+
+  // Initialize users buckets
+  err = db.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists([]byte("users"))
+		return err
+	})
+
 	if err != nil {
 		return err
 	}
