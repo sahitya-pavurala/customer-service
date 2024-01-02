@@ -27,6 +27,12 @@ func InitializeDB() error {
 		return err
 	})
 
+	// Initialize users buckets
+	err = db.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists([]byte("accounts"))
+		return err
+	})
+
 	if err != nil {
 		return err
 	}
@@ -36,30 +42,55 @@ func InitializeDB() error {
 
 func SeedData() error {
 	return db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("customers"))
-		if b == nil {
-			return fmt.Errorf("Bucket not found")
+		customersBucket := tx.Bucket([]byte("customers"))
+		accountsBucket := tx.Bucket([]byte("accounts"))
+
+		if customersBucket == nil || accountsBucket == nil {
+			return fmt.Errorf("Buckets not found")
 		}
 
 		// Seed data
-		seedData := map[string]interface{}{
-			"1": map[string]interface{}{
-				"name":     "Luffy",
-				"address":  "123 Main St",
-				"accounts": []string{"acc1", "acc2"},
+		seedData := map[string]Customer{
+			"1": {
+				CustomerID:      "1",
+				Profile:         "Luffy",
+				PhysicalAddress: "123 Main St",
+				Accounts: []Account{
+					{AccountID: "acc1", Type: "savings"},
+					{AccountID: "acc2", Type: "checking"},
+				},
 			},
-			// Add more seed data as needed
+			"2": {
+				CustomerID:      "2",
+				Profile:         "Zoro",
+				PhysicalAddress: "265 First St",
+				Accounts: []Account{
+					{AccountID: "acc3", Type: "savings"},
+					{AccountID: "acc4", Type: "checking"},
+				},
+			},
 		}
 
-		for id, data := range seedData {
-			jsonData, err := json.Marshal(data)
+		for customerID, customer := range seedData {
+			// Insert into "customers" bucket
+			customerData, err := json.Marshal(customer)
 			if err != nil {
 				return err
 			}
-
-			err = b.Put([]byte(id), jsonData)
-			if err != nil {
+			if err := customersBucket.Put([]byte(customerID), customerData); err != nil {
 				return err
+			}
+
+			// Insert associated accounts into "accounts" bucket
+			for _, account := range customer.Accounts {
+				accountData, err := json.Marshal(account)
+				if err != nil {
+					return err
+				}
+
+				if err := accountsBucket.Put([]byte(account.AccountID), accountData); err != nil {
+					return err
+				}
 			}
 		}
 
