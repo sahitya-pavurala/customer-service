@@ -11,62 +11,155 @@ import (
 var jwtKey = []byte("dummy_secret_key")
 
 func GetAllCustomers(c *gin.Context) {
-	var data [][]byte
-	var result map[string]interface{}
-	results := []map[string]interface{}{}
+	var customers []Customer
 
 	err := db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("customers"))
-		if b == nil {
-			return fmt.Errorf("Bucket not found")
+		customersBucket := tx.Bucket([]byte("customers"))
+		accountsBucket := tx.Bucket([]byte("accounts"))
+
+		if customersBucket == nil || accountsBucket == nil {
+			return fmt.Errorf("Buckets not found")
 		}
 
-		// Set the cursor to the last key in the bucket
-		cursor := b.Cursor()
-		lastKey, _ := cursor.Last()
+		// Iterate through customers
+		return customersBucket.ForEach(func(customerID, customerData []byte) error {
+			var customer Customer
+			if err := json.Unmarshal(customerData, &customer); err != nil {
+				return err
+			}
 
-		// Iterate and add to data
-		for k, v := cursor.Seek(lastKey); k != nil; k, v = cursor.Prev() {
-			data = append(data, v)
+			// Fetch associated accounts
+			for _, account := range customer.Accounts {
+				accountData := accountsBucket.Get([]byte(account.AccountID))
+				if accountData == nil {
+					return fmt.Errorf("Account not found")
+				}
+
+				if err := json.Unmarshal(accountData, &account); err != nil {
+					return err
+				}
+			}
+
+			// Append customer to result
+			customers = append(customers, customer)
+			return nil
+		})
+	})
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, customers)
+}
+
+func GetCustomerById(c *gin.Context) {
+	customerID := c.Param("customer_id")
+
+	var customer Customer
+
+	err := db.View(func(tx *bolt.Tx) error {
+		customersBucket := tx.Bucket([]byte("customers"))
+		accountsBucket := tx.Bucket([]byte("accounts"))
+
+		if customersBucket == nil || accountsBucket == nil {
+			return fmt.Errorf("Buckets not found")
+		}
+
+		// Retrieve customer by customer_id
+		customerData := customersBucket.Get([]byte(customerID))
+		if customerData == nil {
+			return fmt.Errorf("Customer not found")
+		}
+
+		// Unmarshal customer data
+		if err := json.Unmarshal(customerData, &customer); err != nil {
+			return err
+		}
+
+		// Fetch associated accounts
+		for _, account := range customer.Accounts {
+			accountData := accountsBucket.Get([]byte(account.AccountID))
+			if accountData == nil {
+				return fmt.Errorf("Account not found")
+			}
+
+			if err := json.Unmarshal(accountData, &account); err != nil {
+				return err
+			}
 		}
 
 		return nil
 	})
+
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
 
-	for _, d := range data {
-		json.Unmarshal(d, &result)
-		results = append(results, result)
-	}
-
-	c.JSON(http.StatusOK, results)
+	c.JSON(http.StatusOK, customer)
 }
 
-func GetCustomerUsingId(c *gin.Context) {
-	id := c.Param("id")
+func GetCustomerByAccountId(c *gin.Context) {
+	accountID := c.Param("account_id")
 
-	var result map[string]interface{}
+	var customer Customer
 
 	err := db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("customers"))
-		if b == nil {
-			return fmt.Errorf("Bucket not found")
+		customersBucket := tx.Bucket([]byte("customers"))
+		accountsBucket := tx.Bucket([]byte("accounts"))
+
+		if customersBucket == nil || accountsBucket == nil {
+			return fmt.Errorf("Buckets not found")
 		}
 
-		data := b.Get([]byte(id))
-		if data == nil {
-			return fmt.Errorf("Customer not found")
+		// Iterate through customers to find the one with the specified account_id
+		err := customersBucket.ForEach(func(customerID, customerData []byte) error {
+			var currCustomer Customer
+			if err := json.Unmarshal(customerData, &currCustomer); err != nil {
+				return err
+			}
+
+			// Check if the account_id exists in the customer's accounts
+			for _, account := range currCustomer.Accounts {
+				if account.AccountID == accountID {
+					customer = currCustomer
+
+					// Fetch associated accounts
+					for _, acc := range customer.Accounts {
+						accountData := accountsBucket.Get([]byte(acc.AccountID))
+						if accountData == nil {
+							return fmt.Errorf("Account not found")
+						}
+
+						if err := json.Unmarshal(accountData, &acc); err != nil {
+							return err
+						}
+					}
+
+					return nil
+				}
+			}
+
+			return nil
+		})
+
+		if err != nil {
+			return err
 		}
 
-		return json.Unmarshal(data, &result)
+		if customer.CustomerID == "" {
+			return fmt.Errorf("Customer not found for account_id: %s", accountID)
+		}
+
+		return nil
 	})
 
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, result)
+
+	c.JSON(http.StatusOK, customer)
 }
