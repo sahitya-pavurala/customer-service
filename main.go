@@ -33,7 +33,9 @@ func main() {
 	private.Use(AuthMiddleware)
 	{
 		private.GET("/customers", GetAllCustomers)
-		private.GET("/customers/:id", GetCustomerUsingId)
+		private.GET("/customers/:customer_id", GetCustomerById)
+		private.GET("/accounts/:account_id/customer", GetCustomerByAccountId)
+
 	}
 
 	r.Run(":8080")
