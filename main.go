@@ -38,5 +38,7 @@ func main() {
 
 	}
 
+	r.POST("/customers", AddCustomer)
+	r.POST("/customers/:id/accounts", AddAccount)
 	r.Run(":8080")
 }

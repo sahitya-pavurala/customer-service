@@ -6,6 +6,8 @@ import (
 	"github.com/boltdb/bolt"
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"strconv"
+	"time"
 )
 
 var jwtKey = []byte("dummy_secret_key")
@@ -162,4 +164,99 @@ func GetCustomerByAccountId(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, customer)
+}
+
+// AddCustomer handles the creation of a new customer
+func AddCustomer(c *gin.Context) {
+	var newCustomer Customer
+
+	// Bind JSON request body to the Customer struct
+	if err := c.BindJSON(&newCustomer); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Add the new customer to the database
+	err := db.Update(func(tx *bolt.Tx) error {
+		customersBucket := tx.Bucket([]byte("customers"))
+
+		if customersBucket == nil {
+			return fmt.Errorf("Bucket not found")
+		}
+
+		// Generate a unique customer ID (you may use a UUID library for better uniqueness)
+		newCustomer.CustomerID = strconv.FormatInt(time.Now().UnixNano(), 10)
+
+		// Marshal the customer data
+		customerData, err := json.Marshal(newCustomer)
+		if err != nil {
+			return err
+		}
+
+		// Store the new customer in the database
+		return customersBucket.Put([]byte(newCustomer.CustomerID), customerData)
+	})
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, newCustomer)
+}
+
+// AddAccount handles the creation of a new account for an existing customer
+func AddAccount(c *gin.Context) {
+	customerID := c.Param("id") // Retrieve customer ID from the URL parameter
+
+	var newAccount Account
+
+	// Bind JSON request body to the Account struct
+	if err := c.BindJSON(&newAccount); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Add the new account to the customer's accounts in the database
+	err := db.Update(func(tx *bolt.Tx) error {
+		customersBucket := tx.Bucket([]byte("customers"))
+
+		if customersBucket == nil {
+			return fmt.Errorf("Bucket not found")
+		}
+
+		// Retrieve the existing customer data
+		existingCustomerData := customersBucket.Get([]byte(customerID))
+		if existingCustomerData == nil {
+			return fmt.Errorf("Customer not found")
+		}
+
+		// Unmarshal the existing customer data
+		var existingCustomer Customer
+		if err := json.Unmarshal(existingCustomerData, &existingCustomer); err != nil {
+			return err
+		}
+
+		// Generate a unique account ID (you may use a UUID library for better uniqueness)
+		newAccount.AccountID = strconv.FormatInt(time.Now().UnixNano(), 10)
+
+		// Append the new account to the existing customer's accounts
+		existingCustomer.Accounts = append(existingCustomer.Accounts, newAccount)
+
+		// Marshal the updated customer data
+		updatedCustomerData, err := json.Marshal(existingCustomer)
+		if err != nil {
+			return err
+		}
+
+		// Update the existing customer data in the database
+		return customersBucket.Put([]byte(customerID), updatedCustomerData)
+	})
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, newAccount)
 }
