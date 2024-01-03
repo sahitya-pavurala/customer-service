@@ -35,10 +35,10 @@ func main() {
 		private.GET("/customers", GetAllCustomers)
 		private.GET("/customers/:customer_id", GetCustomerById)
 		private.GET("/accounts/:account_id/customer", GetCustomerByAccountId)
+		private.POST("/customers", AddCustomer)
+		private.POST("/customers/:id/accounts", AddAccount)
 
 	}
 
-	r.POST("/customers", AddCustomer)
-	r.POST("/customers/:id/accounts", AddAccount)
 	r.Run(":8080")
 }
