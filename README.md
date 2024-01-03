@@ -56,9 +56,13 @@ The microservice exposes REST API endpoints for managing customers and accounts.
   ```http
   GET /customers
   
-- **Get Customer by id:**
+- **Get Customer by customer id:**
   ```http
   GET /customers/:customer_id
+
+- **Get Customer by account id:**
+  ```http
+  GET /accounts/:account_id/customer
 
 - **Create Customer:**
   ```http
