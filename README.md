@@ -1,6 +1,6 @@
 # Customer Service
 
-This is a microservice project for managing customer information.
+This is a microservice project to demonstrate golang rest api development and deployment to kubernetes.
 
 ## Table of Contents
 
